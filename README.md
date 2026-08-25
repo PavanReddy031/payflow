@@ -1,5 +1,4 @@
 # PayFlow Project — Context Prompt
-## Copy this entire prompt and paste it at the start of any new Claude chat
 
 ---
 
