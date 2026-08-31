@@ -1,5 +1,6 @@
 package com.payflow.payment.service.impl;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -13,22 +14,26 @@ import org.springframework.stereotype.Service;
 import com.payflow.payment.dto.request.PaymentInitiateRequest;
 import com.payflow.payment.dto.response.PaymentResponse;
 import com.payflow.payment.enums.PaymentStatus;
+import com.payflow.payment.event.PaymentEvenPublisher;
+import com.payflow.payment.event.PaymentInitiatedEvent;
 import com.payflow.payment.mapper.PaymentMapper;
 import com.payflow.payment.model.Transaction;
 import com.payflow.payment.repository.TransactionRepository;
 import com.payflow.payment.service.PaymentService;
 
+import lombok.RequiredArgsConstructor;
+
 @Service
+@RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
 	
-	@Autowired
-	private RedisTemplate<String, String> redisTemplate;
+	private final RedisTemplate<String, String> redisTemplate;
 	
-	@Autowired
-	private TransactionRepository transactionRepository;
+	private final TransactionRepository transactionRepository;
 	
-	@Autowired
-	private PaymentMapper paymentMapper;
+	private final PaymentMapper paymentMapper;
+	
+	private final PaymentEvenPublisher paymentEventPublisher;
 	
 	private static final String IDEMPOTENCY_PREFIX = "idempotency:";
 	private static final long IDEMPOTENCY_TTL_HOURS = 24;
@@ -95,8 +100,18 @@ public class PaymentServiceImpl implements PaymentService {
 	    saveIdempotencyKey(redisKey, saved.getId());
 	    
 	    
-	    // Publish to kafka
-	    // TO DO
+	    // Publish to KAFKA
+	    PaymentInitiatedEvent event =  PaymentInitiatedEvent.builder()
+	    									.transactionId(saved.getId())
+	    									.merchantId(saved.getMerchantId())
+	    									.amount(saved.getAmount())
+	    									.currency(saved.getCurrency())
+	    									.customerEmail(saved.getCustomerEmail())
+	    									.customerCellNumber(saved.getCustomerCellNumber())
+	    									.initiatedAt(saved.getCreatedAt())
+	    									.build();
+	    
+	    paymentEventPublisher.publishPaymentInitiated(event);
 		
 	    // return response
 		return paymentMapper.mapToResponse(saved, "Payment Initiated successfully");
